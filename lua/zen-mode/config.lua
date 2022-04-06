@@ -4,8 +4,11 @@ local M = {}
 ---@class ZenOptions
 local defaults = {
   zindex = 40, -- zindex of the zen window. Should be less than 50, which is the float default
+  scratch = true, -- enable scratch window
+  scratch_max_width = nil, -- width of scratch window
   window = {
     backdrop = 0.95, -- shade the backdrop of the zen window. Set to 1 to keep the same as Normal
+    scratch_hlgroup = "ZenScratch", -- highlight group to use for scratch window
     -- height and width can be:
     -- * an asbolute number of cells when > 1
     -- * a percentage of the width / height of the editor when <= 1

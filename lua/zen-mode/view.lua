@@ -5,6 +5,8 @@ local M = {}
 
 M.bg_win = nil
 M.bg_buf = nil
+M.scratch_win = nil
+M.scratch_buf = nil
 M.parent = nil
 M.win = nil
 --- @type ZenOptions
@@ -14,6 +16,40 @@ M.closed = false
 
 function M.is_open()
   return M.win and vim.api.nvim_win_is_valid(M.win)
+end
+
+function M.is_zen_open()
+  if not M.opts then
+    return false
+  else
+    return M.opts.scratch
+  end
+end
+
+function M.is_scratch_open()
+  if not M.opts then
+    return false
+  else
+    return M.opts.scratch
+  end
+end
+
+function M.to_zen()
+  if M.is_zen_open() then
+    vim.api.nvim_set_current_win(M.win)
+    return true
+  else
+    return false
+  end
+end
+
+function M.to_scratch()
+  if M.is_scratch_open() then
+    vim.api.nvim_set_current_win(M.scratch_win)
+    return true
+  else
+    return false
+  end
 end
 
 function M.plugins_on_open()
@@ -49,6 +85,14 @@ function M.close()
   if M.bg_buf and vim.api.nvim_buf_is_valid(M.bg_buf) then
     vim.api.nvim_buf_delete(M.bg_buf, { force = true })
     M.bg_buf = nil
+  end
+  if M.scratch_win and vim.api.nvim_win_is_valid(M.scratch_win) then
+    vim.api.nvim_win_close(M.scratch_win, { force = true })
+    M.scratch_win = nil
+  end
+  if M.scratch_buf and vim.api.nvim_buf_is_valid(M.scratch_buf) then
+    vim.api.nvim_buf_delete(M.scratch_buf, { force = true })
+    M.scratch_buf = nil
   end
   if M.opts then
     M.plugins_on_close()
@@ -127,7 +171,39 @@ function M.fix_layout(win_resized)
     if wrow ~= row or wcol ~= col then
       vim.api.nvim_win_set_config(M.win, { col = col, row = row, relative = "editor" })
     end
+    if (M.opts.scratch) then
+      local w = col - 1
+      if M.opts.scratch_max_width then
+        w = math.min(w, M.opts.scratch_max_width)
+      end
+      vim.api.nvim_win_set_config(M.scratch_win, { width = w, height = height })
+    end
   end
+end
+
+function M.scratch_create(opts)
+  local width = vim.o.columns
+  local scratch_cols = math.floor((width - opts.window.width) / 2)
+  M.scratch_buf = vim.api.nvim_create_buf(false, true)
+  local height = M.resolve(M.height(), opts.window.height)
+  local row = M.round((M.height() - height) / 2)
+  local ok
+  ok, M.scratch_win = pcall(vim.api.nvim_open_win, M.scratch_buf, false, {
+    relative = "editor",
+    width = scratch_cols,
+    height = M.height(),
+    focusable = true,
+    row = row,
+    col = 0,
+    style = "minimal",
+    zindex = opts.zindex - 9,
+  })
+  if not ok then
+    util.error("could not open floating window. You need a Neovim build that supports zindex (May 15 2021 or newer)")
+    M.scratch_win = nil
+    return
+  end
+  M.fix_hl(M.scratch_win, opts.window.scratch_hlgroup)
 end
 
 --- @param opts ZenOptions
@@ -137,6 +213,9 @@ function M.create(opts)
   M.state = {}
   M.parent = vim.api.nvim_get_current_win()
 
+  if (M.opts.scratch) then
+    M.scratch_create(opts)
+  end
   M.bg_buf = vim.api.nvim_create_buf(false, true)
   local ok
   ok, M.bg_win = pcall(vim.api.nvim_open_win, M.bg_buf, false, {
@@ -181,10 +260,16 @@ function M.create(opts)
   -- TODO: listen for WinNew and BufEnter. When a new window, or bufenter in a new window, close zen mode
   -- unless it's in a float
   -- TODO: when the cursor leaves the window, we close zen mode, or prevent leaving the window
+  local scratch_cmd = ""
+  if (M.opts.scratch) then
+    scratch_cmd = "autocmd WinClosed %d ++once ++nested lua require(\"zen-mode.view\").close()"
+    scratch_cmd = scratch_cmd:format(M.scratch_win)
+  end
   local augroup = [[
     augroup Zen
       autocmd!
       autocmd WinClosed %d ++once ++nested lua require("zen-mode.view").close()
+      %s
       autocmd WinEnter * lua require("zen-mode.view").on_win_enter()
       autocmd CursorMoved * lua require("zen-mode.view").fix_layout()
       autocmd VimResized * lua require("zen-mode.view").fix_layout(true)
@@ -192,7 +277,7 @@ function M.create(opts)
       autocmd BufWinEnter * lua require("zen-mode.view").on_buf_win_enter()
     augroup end]]
 
-  vim.api.nvim_exec(augroup:format(M.win, M.win), false)
+  vim.api.nvim_exec(augroup:format(M.win, scratch_cmd), false)
 end
 
 function M.fix_hl(win, normal)
@@ -222,7 +307,7 @@ end
 
 function M.on_win_enter()
   local win = vim.api.nvim_get_current_win()
-  if win ~= M.win and not M.is_float(win) then
+  if (win ~= M.win or win ~= M.scratch_win) and not M.is_float(win) then
     -- HACK: when returning from a float window, vim initially enters the parent window.
     -- give 10ms to get back to the zen window before closing
     vim.defer_fn(function()
