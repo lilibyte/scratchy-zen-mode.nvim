@@ -18,14 +18,6 @@ function M.is_open()
   return M.win and vim.api.nvim_win_is_valid(M.win)
 end
 
-function M.is_zen_open()
-  if not M.opts then
-    return false
-  else
-    return M.opts.scratch
-  end
-end
-
 function M.is_scratch_open()
   if not M.opts then
     return false
@@ -35,7 +27,7 @@ function M.is_scratch_open()
 end
 
 function M.to_zen()
-  if M.is_zen_open() then
+  if M.is_open() then
     vim.api.nvim_set_current_win(M.win)
     return true
   else
