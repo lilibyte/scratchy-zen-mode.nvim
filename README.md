@@ -1,10 +1,104 @@
-# 🧘  Zen Mode
+## Scratchy Zen Mode
+
+![image](demo.png)
+
+This plugin is a fork of folke's [zen-mode.nvim](https://github.com/folke/zen-mode.nvim) that implements
+the great idea of FraserLee's [ScratchPad](https://github.com/FraserLee/ScratchPad).
+
+It turns the left margin added by Zen Mode into a scratch buffer (`:h scratch`)
+that can be used like a sticky note for the duration of your time in `:ZenMode`.
+
+Unlike ScratchPad, this scratch buffer is not persistent and should be treated
+as a mechanism for ephemeral brainstorming. Since the window is an ordinary
+vim scratch window you can save it manually if desired with `:w filename.txt`.
+
+The documentation for folke's zen-mode.nvim (sans emotes) can be found
+[below](#zen-mode). I make no promises that this repo will necessarily be
+maintained and/or kept up to date with `zen-mode.nvim`. Use with caution.
+
+### Scratch-Specific Configuration
+
+Only a few options were added to `zen-mode.nvim` for configuring this feature:
+
+```lua
+require("zen-mode").setup {
+  scratch = true,
+  scratch_max_width = nil,
+  window = {
+    scratch_hlgroup = "ZenScratch",
+  },
+}
+```
+
+* `scratch` enables or disables the scratch pad feature entirely (default:
+**true**)
+
+* `scratch_max_width` specifies how wide the scratch pad window can be. this
+allows you to limit the width of the scratch pad while not affecting the
+overall Zen Mode width. When unset the scratch window will use the entire
+left-side margin of the Zen Mode background, minus one column (default: **nil**)
+
+* `scratch_hlgroup` specifies the highlight group to apply to the scratch pad
+window. Allows you to set the scratch pad to an existing group (e.g. `"Comment"`)
+or modify the default group (default: **"ZenScratch"**)
+
+### Navigating to the Scratch Window
+
+[Since Zen Mode will close if the cursor leaves the main window (or scratch
+window in this fork)](https://github.com/lilibyte/scratchy-zen-mode.nvim/blob/7fbc90400b68ebde0d4ab83eaa51aab717dc29f3/lua/zen-mode/view.lua#L300-L313)
+and because both windows are floating windows (`:h api-floatwin`) it makes
+navigating between them a little tricky. As a mitigation for this issue I
+created some functions that can be used to move the cursor between the two
+windows.
+
+* [`require("zen-mode").to_scratch()`](https://github.com/lilibyte/scratchy-zen-mode.nvim/blob/7fbc90400b68ebde0d4ab83eaa51aab717dc29f3/lua/zen-mode/view.lua#L38-L45)
+will move the scratch pad window into focus
+if it's available (Zen Mode is activated and `scratch` is truthy) and return
+`true`, and otherwise will return `false`
+
+* [`require("zen-mode").to_zen()`](https://github.com/lilibyte/scratchy-zen-mode.nvim/blob/7fbc90400b68ebde0d4ab83eaa51aab717dc29f3/lua/zen-mode/view.lua#L29-L36)
+will move the main Zen Mode window into focus if it's available (Zen Mode is
+activated) and return `true`, and otherwise will return `false`
+
+* [`require("zen-mode").is_scratch_open()`](https://github.com/lilibyte/scratchy-zen-mode.nvim/blob/7fbc90400b68ebde0d4ab83eaa51aab717dc29f3/lua/zen-mode/view.lua#L21-L27)
+will return `false` if Zen Mode is not activated, and otherwise will return the
+value of the `scratch` option; this can be used along with the original
+`zen-mode.nvim` function
+[`.is_open()`](https://github.com/lilibyte/scratchy-zen-mode.nvim/blob/7fbc90400b68ebde0d4ab83eaa51aab717dc29f3/lua/zen-mode/view.lua#L17-L19)
+to check if cursor movement would be valid without moving the cursor
+
+To demonstrate, here's the modification I made to my personal config file to
+accommodate this plugin:
+
+```lua
+" nnoremap <silent> <C-h> <C-w>h
+" nnoremap <silent> <C-l> <C-w>l
+lua << EOF
+local function t(str)
+    return vim.api.nvim_replace_termcodes(str, true, true, true)
+end
+
+function _G.go_left_win()
+    return require("zen-mode").to_scratch() or vim.fn.feedkeys(t"<C-w>h")
+end
+
+function _G.go_right_win()
+    return require("zen-mode").to_zen() or vim.fn.feedkeys(t"<C-w>l")
+end
+
+vim.api.nvim_set_keymap('n', '<C-h>', "<cmd>lua _G.go_left_win()<CR>", {noremap = true})
+vim.api.nvim_set_keymap('n', '<C-l>', "<cmd>lua _G.go_right_win()<CR>", {noremap = true})
+EOF
+
+nnoremap <silent> <C-j> <C-w>j
+nnoremap <silent> <C-k> <C-w>k
+```
+
+## Zen Mode
 
 Distraction-free coding for Neovim >= 0.5
 
-![image](https://user-images.githubusercontent.com/292349/118454007-b7d8c900-b6ac-11eb-8263-015a8d929644.png)
-
-## ✨ Features
+### Features
 
 - opens the current buffer in a new full-screen floating window
 - doesn't mess with existing window layouts / splits
@@ -23,18 +117,18 @@ Distraction-free coding for Neovim >= 0.5
 - works well with plugins like [Telescope](https://github.com/nvim-telescope/telescope.nvim) to open a new buffer inside the Zen window
 - close the Zen window with `:ZenMode`, `:close` or `:quit`
 
-## ⚡️ Requirements
+### Requirements
 
 - Neovim >= 0.5.0
-  - ❗ **Zen Mode** uses the new `z-index` option for floating windows
-  - ❗ only builds **newer than May 15, 2021** are supported
+  - **Zen Mode** uses the new `z-index` option for floating windows
+  - only builds **newer than May 15, 2021** are supported
 - [Twilight](https://github.com/folke/twilight.nvim) is optional to dim inactive portions of your code
 
-## 📦 Installation
+### Installation
 
 Install the plugin with your preferred package manager:
 
-### [packer](https://github.com/wbthomason/packer.nvim)
+#### [packer](https://github.com/wbthomason/packer.nvim)
 
 ```lua
 -- Lua
@@ -50,7 +144,7 @@ use {
 }
 ```
 
-### [vim-plug](https://github.com/junegunn/vim-plug)
+#### [vim-plug](https://github.com/junegunn/vim-plug)
 
 ```vim
 " Vim Script
@@ -65,7 +159,7 @@ lua << EOF
 EOF
 ```
 
-## ⚙️ Configuration
+### Configuration
 
 **Zen Mode** comes with the following defaults:
 
@@ -120,7 +214,7 @@ EOF
 }
 ```
 
-## 🚀 Usage
+### Usage
 
 Toggle **Zen Mode** with `:ZenMode`.
 
@@ -134,7 +228,7 @@ require("zen-mode").toggle({
 })
 ```
 
-## Inspiration
+### Inspiration
 
 - Visual Studio Code [Zen Mode](https://code.visualstudio.com/docs/getstarted/userinterface#_zen-mode)
 - Emacs [writeroom-mode](https://github.com/joostkremers/writeroom-mode)
